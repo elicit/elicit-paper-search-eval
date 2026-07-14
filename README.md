@@ -6,12 +6,12 @@ The checked-in result reproduces Elicit's macro recall of **0.390, 0.483, 0.603,
 
 ## Reproduce the reported Elicit score
 
-Python 3.11 or newer is the only requirement. The scripts use the standard library and do not require installation.
+[uv](https://docs.astral.sh/uv/) is the only tool you need. The project is pinned to Python 3.11 and has no runtime dependencies.
 
 ```bash
 git clone https://github.com/elicit/elicit-paper-search-eval.git
 cd elicit-paper-search-eval
-python score.py --strict-complete
+uv run score.py --strict-complete
 ```
 
 Expected output:
@@ -42,24 +42,24 @@ cp .env.example .env
 Run a small pilot first. Each completed question is appended immediately, so an interrupted run resumes without repeating successful requests.
 
 ```bash
-python search.py elicit --limit 100 --concurrency 2
-python score.py --results runs/elicit.jsonl --failures runs/elicit.failures.jsonl
+uv run search.py elicit --limit 100 --concurrency 2
+uv run score.py --results runs/elicit.jsonl --failures runs/elicit.failures.jsonl
 ```
 
 After checking the pilot, run the full input:
 
 ```bash
-python search.py elicit --concurrency 2 --confirm-large-run
+uv run search.py elicit --concurrency 2 --confirm-large-run
 ```
 
 The same interface supports all evaluated providers:
 
 ```bash
-python search.py consensus --limit 100
-python search.py semantic_scholar --limit 100
-python search.py openalex_keyword --limit 100
-python search.py openalex_semantic --limit 100
-python search.py google_scholar --limit 100
+uv run search.py consensus --limit 100
+uv run search.py semantic_scholar --limit 100
+uv run search.py openalex_keyword --limit 100
+uv run search.py openalex_semantic --limit 100
+uv run search.py google_scholar --limit 100
 ```
 
 Provider responses and failure sidecars are written under `runs/`, which is gitignored. No competitor responses are included in this repository.
@@ -147,6 +147,7 @@ Transient network errors, HTTP 429s, and HTTP 5xx responses are retried with exp
 data/bioasq.jsonl              Frozen questions, gold papers, queries, and prompts
 data/elicit_results.jsonl.gz   Frozen Elicit top-200 outputs
 data/manifest.json             Counts, expected metrics, provenance, and checksums
+uv.lock                        Locked Python and development-tool environment
 search.py                      Resumable API runner for all six provider modes
 score.py                       Deterministic recall scorer
 tests/test_score.py            Matching and normalization regression tests
