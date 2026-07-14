@@ -1,0 +1,53 @@
+{
+  "artifacts": {
+    "data/bioasq.jsonl": {
+      "sha256": "7031ed7d91f6bb07147d1e212914b1eba7a6c7ff8b975741d4e263bac1c1aa69"
+    },
+    "data/elicit_results.jsonl.gz": {
+      "sha256": "5710792f4afef89d2bd89d16afe9efb52954c42ce7ce1b62f320f1abd2858795"
+    }
+  },
+  "benchmark": "BioASQ Task B golden-enriched questions pooled across challenge years",
+  "cutoffs": [
+    10,
+    20,
+    50,
+    100,
+    200
+  ],
+  "elicit_candidate_rows": 1097200,
+  "elicit_results_per_question": 200,
+  "expected_macro_recall": {
+    "10": 0.3903903033744637,
+    "100": 0.6699361587941994,
+    "20": 0.4831171773524751,
+    "200": 0.7082771650728946,
+    "50": 0.6030633271415055
+  },
+  "expected_micro_recall": {
+    "10": 0.20395954992166357,
+    "100": 0.5705561885771258,
+    "20": 0.30634881071072495,
+    "200": 0.6322639225181598,
+    "50": 0.4660126762569435
+  },
+  "gold_papers": 56168,
+  "match_order": [
+    "pmid",
+    "doi",
+    "exact_normalized_title"
+  ],
+  "provenance_note": "The source Elicit run completed all 5,486 questions. Its resume step overwrote the first-pass run metadata, so acquisition commit/concurrency provenance is reconstructed from the durable evaluation record rather than self-contained in the source run folder.",
+  "questions": 5486,
+  "source_artifacts": {
+    "elicit_candidates.parquet": {
+      "sha256": "2efe38d5df6d53c0e58f938757de65e69eee5d4372edcd52e8e81eef7c2300b2"
+    },
+    "final_keyword_query_ledger.jsonl": {
+      "sha256": "29d4feb0afbac6f1f8ca79295798b7182fa7e244af424cd2f7a4157e00c66fc4"
+    },
+    "golden_enriched_v1.jsonl": {
+      "sha256": "d8862c24f75379d66eaadb492ef8127d70325eadb67f934fbec3f1c50f175138"
+    }
+  }
+}

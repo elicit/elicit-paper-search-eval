@@ -1,0 +1,169 @@
+# Elicit paper search evaluation on BioASQ
+
+This repository reproduces the paper-search recall evaluation reported in Elicit's Search API launch materials. It contains the frozen BioASQ inputs, the Elicit outputs used for the reported result, a deterministic scorer, and a small runner for every evaluated search API.
+
+The checked-in result reproduces Elicit's macro recall of **0.390, 0.483, 0.603, 0.670, and 0.708** at 10, 20, 50, 100, and 200 results.
+
+## Reproduce the reported Elicit score
+
+Python 3.11 or newer is the only requirement. The scripts use the standard library and do not require installation.
+
+```bash
+git clone https://github.com/elicit/elicit-paper-search-eval.git
+cd elicit-paper-search-eval
+python score.py --strict-complete
+```
+
+Expected output:
+
+| Metric | @10 | @20 | @50 | @100 | @200 |
+|---|---:|---:|---:|---:|---:|
+| Macro recall | 0.390 | 0.483 | 0.603 | 0.670 | 0.708 |
+| Micro recall | 0.204 | 0.306 | 0.466 | 0.571 | 0.632 |
+
+The scorer should also report:
+
+```text
+num_scored_questions: 5486
+total_gold: 56168
+match_tier_counts: doi=40, pmid=35060, title=413
+```
+
+`data/manifest.json` records the full-precision expected values and SHA-256 hashes for the frozen artifacts.
+
+## Run a search API
+
+Copy the environment template and add the key for the provider you want to run:
+
+```bash
+cp .env.example .env
+```
+
+Run a small pilot first. Each completed question is appended immediately, so an interrupted run resumes without repeating successful requests.
+
+```bash
+python search.py elicit --limit 100 --concurrency 2
+python score.py --results runs/elicit.jsonl --failures runs/elicit.failures.jsonl
+```
+
+After checking the pilot, run the full input:
+
+```bash
+python search.py elicit --concurrency 2 --confirm-large-run
+```
+
+The same interface supports all evaluated providers:
+
+```bash
+python search.py consensus --limit 100
+python search.py semantic_scholar --limit 100
+python search.py openalex_keyword --limit 100
+python search.py openalex_semantic --limit 100
+python search.py google_scholar --limit 100
+```
+
+Provider responses and failure sidecars are written under `runs/`, which is gitignored. No competitor responses are included in this repository.
+
+### Calls and provider limits
+
+The full benchmark contains 5,486 questions. At the evaluated depths, a complete run can make up to:
+
+| Provider | Query | Maximum depth | Calls for 5,486 questions |
+|---|---|---:|---:|
+| Elicit | Original natural-language question | 200 | 5,486 |
+| Consensus | Original natural-language question | about 20 | 5,486 |
+| Semantic Scholar | Provider-specific keyword query | 200 | 10,972 |
+| OpenAlex keyword | Provider-specific keyword query | 200 | 10,972 |
+| OpenAlex semantic | Original natural-language question | 50 | 5,486 |
+| Google Scholar via SerpAPI | Provider-specific keyword query | 200 | 54,860 |
+
+Google Scholar uses up to ten paid SerpAPI searches per question. Check your SerpAPI plan and current pricing before running it. API behavior, indexes, ranking models, quotas, and prices can change, so a new live run is not expected to reproduce a frozen 2026 result exactly.
+
+## Method
+
+### Benchmark
+
+The input is a deduplicated set of 5,486 BioASQ Task B questions pooled across challenge years. Questions repeated in different years remain separate when their gold paper set or publication cutoff differs. Each API request excludes papers published after that question's BioASQ challenge year.
+
+`data/bioasq.jsonl` has one self-contained record per question:
+
+```json
+{
+  "question_id": "golden_enriched:...",
+  "question": "Is Tuberous Sclerosis a genetic disease?",
+  "max_year": 2014,
+  "gold": [{"pmid": "...", "doi": "...", "title": "..."}],
+  "queries": {
+    "semantic_scholar": {"query": "...", "query_version_id": "..."},
+    "openalex_keyword": {"query": "...", "query_version_id": "..."},
+    "google_scholar": {"query": "...", "query_version_id": "..."}
+  }
+}
+```
+
+Every keyword-query record also includes the model, source, exact prompt, prompt hash, query version, and exact request string sent after provider-specific normalization. This runner consumes those frozen queries; it does not call an LLM or regenerate them.
+
+### Search configuration
+
+Semantic providers receive the original BioASQ question. Keyword providers receive the final provider-specific query in the input file. Elicit uses:
+
+```http
+POST https://elicit.com/api/v2/search/papers
+Authorization: Bearer $ELICIT_API_KEY
+Content-Type: application/json
+
+{
+  "query": "<BioASQ question>",
+  "searchMode": "semantic",
+  "corpus": "elicit",
+  "filters": {"maxYear": 2014},
+  "maxResults": 200
+}
+```
+
+The frozen Elicit output came from the evaluated 300-candidate reranking configuration and contains exactly 200 returned papers per question.
+
+### Matching
+
+Candidates are examined in provider rank order. A paper is credited at most once, through the first available matching tier:
+
+1. exact normalized PMID;
+2. exact normalized DOI; then
+3. exact normalized title after lowercasing, Unicode normalization, punctuation removal, and whitespace collapse.
+
+The matcher commits to the first tier that points to a gold paper. If that gold paper was already claimed by an earlier result, the candidate receives no additional credit and does not fall through to a weaker tier. This prevents duplicate results from claiming multiple gold papers.
+
+Macro recall is computed per question and then averaged, giving each question equal weight. Micro recall pools the matched and gold paper counts across questions.
+
+### Failures
+
+Successful questions are scored; questions with recorded retrieval failures are reported and excluded. A successful response containing no candidates remains a zero-recall result. Google Scholar's explicit no-results response is recorded as a terminal failure to preserve the convention used in the reported comparison.
+
+Transient network errors, HTTP 429s, and HTTP 5xx responses are retried with exponential backoff, jitter, and `Retry-After` support. Exhausted transient errors remain retryable on the next invocation. Terminal errors are skipped on resume unless `--retry-terminal` is supplied.
+
+## Files
+
+```text
+data/bioasq.jsonl              Frozen questions, gold papers, queries, and prompts
+data/elicit_results.jsonl.gz   Frozen Elicit top-200 outputs
+data/manifest.json             Counts, expected metrics, provenance, and checksums
+search.py                      Resumable API runner for all six provider modes
+score.py                       Deterministic recall scorer
+tests/test_score.py            Matching and normalization regression tests
+```
+
+## Data attribution and terms
+
+The benchmark records are derived from [BioASQ Task B](https://bioasq.org/) and PubMed metadata. Courtesy of the U.S. National Library of Medicine. NLM does not endorse this repository or its results.
+
+The snapshot does not represent the most current or complete NLM data. BioASQ and NLM data remain subject to their respective terms, including the [NLM data terms](https://www.nlm.nih.gov/databases/download/terms_and_conditions.html). The MIT license in this repository applies to the code, not to third-party benchmark records or API response content.
+
+## Limitations
+
+BioASQ's gold articles are sufficient evidence selected for its question-answering benchmark, not an exhaustive set of every relevant paper. The benchmark is biomedical and PubMed-oriented. Recall therefore measures recovery of the frozen BioASQ gold set; it does not measure precision, search quality in every discipline, or the relevance of unlabelled results.
+
+The checked-in outputs reproduce the reported score, but they do not make the original acquisition metadata fully self-contained: the final one-question resume overwrote the Elicit run's first-pass metadata. The validated artifact still contains all 5,486 questions and 1,097,200 uniquely ranked candidates; `data/manifest.json` records this provenance limitation explicitly.
+
+## License
+
+The source code is available under the [MIT License](LICENSE).

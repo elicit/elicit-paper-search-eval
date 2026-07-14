@@ -1,0 +1,8 @@
+.env
+__pycache__/
+.ruff_cache/
+*.py[cod]
+.DS_Store
+
+# API runs are local by default. The canonical Elicit artifact under data/ is tracked.
+runs/
